@@ -1,10 +1,16 @@
+using BobsCornApp.Application;
+using BobsCornApp.Application.Options;
+using BobsCornApp.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.Configure<CornRateLimitOptions>(
+    builder.Configuration.GetSection(CornRateLimitOptions.SectionName));
+builder.Services.AddApplicationServices();
+builder.Services.AddInfrastructureServices();
 builder.Services.AddOpenApi();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
@@ -12,6 +18,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Bob's Corn API v1");
+    });
 }
 
 app.UseHttpsRedirection();

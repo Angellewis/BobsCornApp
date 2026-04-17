@@ -7,14 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BobsCornApp.Domain\BobsCornApp.Domain.csproj" />
+    <PackageReference Include="Dapper" Version="2.1.72" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Data\" />
-    <Folder Include="Interfaces\" />
-    <Folder Include="Migrations\" />
-    <Folder Include="Repositories\" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BobsCornApp.Application\BobsCornApp.Application.csproj" />
+    <ProjectReference Include="..\BobsCornApp.Domain\BobsCornApp.Domain.csproj" />
   </ItemGroup>
 
 </Project>

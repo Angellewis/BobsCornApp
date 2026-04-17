@@ -7,14 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BobsCornApp.Domain\BobsCornApp.Domain.csproj" />
+    <PackageReference Include="AutoMapper" Version="16.1.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Interfaces\" />
-    <Folder Include="Dtos\" />
-    <Folder Include="Mapping\" />
-    <Folder Include="Services\" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BobsCornApp.Domain\BobsCornApp.Domain.csproj" />
   </ItemGroup>
 
 </Project>
