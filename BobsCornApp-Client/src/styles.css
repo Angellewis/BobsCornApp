@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background: #f6f2e8;
+  color: #1f2419;
+  font-family: Inter, "Segoe UI", sans-serif;
+}

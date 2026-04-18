@@ -1,0 +1,101 @@
+<main class="grid min-h-[calc(100vh-8rem)] items-center">
+  <section
+    class="grid overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_18px_60px_rgba(44,59,24,0.14)] lg:grid-cols-[0.92fr_1.08fr]"
+  >
+    <div
+      class="relative min-h-80 overflow-hidden bg-[linear-gradient(180deg,#a7d9f1_0%,#d0eef8_50%,#7ca048_50%,#496f31_100%)]"
+    >
+      <div
+        class="absolute left-10 top-10 h-20 w-20 rounded-full bg-amber-300 shadow-[0_0_48px_rgba(255,212,94,0.85)]"
+      ></div>
+      <div
+        class="absolute inset-0 flex items-center justify-center text-[7rem] lg:text-[9rem] [transform:rotate(-8deg)]"
+      >
+        🌽
+      </div>
+      <div
+        class="absolute bottom-0 left-[-10%] h-[72px] w-[120%] bg-[repeating-linear-gradient(90deg,#385f2c_0_22px,#5b8b34_22px_46px)] [transform:skewY(-8deg)]"
+      ></div>
+      <div
+        class="absolute bottom-[70px] left-[-10%] h-[72px] w-[120%] bg-[repeating-linear-gradient(90deg,#385f2c_0_22px,#5b8b34_22px_46px)] opacity-75 [transform:skewY(-8deg)]"
+      ></div>
+    </div>
+
+    <div class="flex flex-col justify-center p-6 sm:p-10 lg:p-14">
+      <p
+        class="mb-3 text-xs font-extrabold uppercase tracking-normal text-lime-700"
+      >
+        Bob's Corn
+      </p>
+      <h2
+        class="text-4xl font-black leading-none text-stone-900 sm:text-5xl lg:text-7xl"
+      >
+        Fair corn sales, one client per minute.
+      </h2>
+      <p class="mt-6 max-w-2xl text-base leading-7 text-stone-600">
+        This portal uses Bob's API behind the scenes. Your browser keeps a
+        stable client id so the rate limit behaves the same way as a direct API
+        consumer.
+      </p>
+
+      <div class="mt-8 grid gap-4 sm:grid-cols-2">
+        <div class="rounded-lg border border-stone-200 bg-amber-50 p-5">
+          <span class="block text-3xl font-black text-lime-800">{{
+            purchasedCount
+          }}</span>
+          <span class="mt-1 block font-semibold text-stone-600"
+            >successful purchases</span
+          >
+        </div>
+        <div class="rounded-lg border border-stone-200 bg-amber-50 p-5">
+          <span class="block text-3xl font-black text-lime-800">
+            {{
+              latestPurchaseAt ? (latestPurchaseAt | date: "shortTime") : "--"
+            }}
+          </span>
+          <span class="mt-1 block font-semibold text-stone-600"
+            >last purchase</span
+          >
+        </div>
+      </div>
+
+      <button
+        class="mt-7 inline-flex min-h-14 w-full max-w-80 items-center justify-center gap-2 rounded-lg bg-lime-700 px-6 py-3 font-extrabold text-white transition hover:bg-lime-800 disabled:cursor-wait disabled:opacity-70"
+        type="button"
+        (click)="buyCorn()"
+        [disabled]="isLoading"
+      >
+        <span aria-hidden="true">🌽</span>
+        <span>{{ purchaseButtonLabel }}</span>
+      </button>
+
+      <p
+        class="mt-5 min-h-12 font-bold"
+        [class.text-red-600]="isUnavailableError"
+        [class.text-stone-600]="!isUnavailableError"
+      >
+        {{ message }}
+      </p>
+
+      @if (retryAfterSeconds !== null) {
+        <p
+          class="w-full max-w-80 rounded-lg border border-amber-300 bg-amber-100 px-4 py-3 font-bold text-amber-900"
+        >
+          You can try again in {{ retryAfterSeconds }} second{{
+            retryAfterSeconds === 1 ? "" : "s"
+          }}.
+        </p>
+      }
+
+      <div class="mt-5 border-t border-stone-200 pt-5">
+        <span
+          class="block text-xs font-extrabold uppercase tracking-normal text-stone-500"
+          >Client Id</span
+        >
+        <span class="mt-2 block break-all font-mono text-sm text-stone-700">{{
+          clientId
+        }}</span>
+      </div>
+    </div>
+  </section>
+</main>

@@ -5,6 +5,15 @@ using BobsCornApp.Infrastructure;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ClientApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 builder.Services.Configure<CornRateLimitOptions>(
     builder.Configuration.GetSection(CornRateLimitOptions.SectionName));
 builder.Services.AddApplicationServices();
@@ -26,6 +35,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("ClientApp");
 
 app.UseAuthorization();
 
