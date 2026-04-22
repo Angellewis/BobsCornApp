@@ -3,6 +3,7 @@ import { Injectable } from "@angular/core";
 import { Observable, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
 import { environment } from "../../../environments/environment";
+import { BaseResponse } from "../../modules/corn/interfaces/api-error-response.interface";
 import { CornPurchaseResponse } from "../../modules/corn/interfaces/corn-purchase-response.interface";
 import { RateLimitExceededResponse } from "../../modules/corn/interfaces/rate-limit-exceeded-response.interface";
 
@@ -12,9 +13,17 @@ export class CornApiService {
 
   constructor(private readonly _httpClient: HttpClient) {}
 
-  buyCorn(): Observable<CornPurchaseResponse> {
+  buyCorn(clientId: string): Observable<CornPurchaseResponse> {
     return this._httpClient
-      .post<CornPurchaseResponse>(`${this.baseUrl}/buy`, {})
+      .post<CornPurchaseResponse>(
+        `${this.baseUrl}/buy`,
+        {},
+        {
+          params: {
+            clientId,
+          },
+        },
+      )
       .pipe(catchError((error: HttpErrorResponse) => throwError(() => error)));
   }
 
@@ -22,5 +31,11 @@ export class CornApiService {
     error: unknown,
   ): error is HttpErrorResponse & { error: RateLimitExceededResponse } {
     return error instanceof HttpErrorResponse && error.status === 429;
+  }
+
+  isBadRequestError(
+    error: unknown,
+  ): error is HttpErrorResponse & { error: BaseResponse } {
+    return error instanceof HttpErrorResponse && error.status === 400;
   }
 }

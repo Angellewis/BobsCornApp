@@ -10,8 +10,17 @@ export class ClientIdentityService {
       return existingClientId;
     }
 
+    return this.generateAndPersistClientId();
+  }
+
+  regenerateClientId(): string {
+    return this.generateAndPersistClientId();
+  }
+
+  private generateAndPersistClientId(): string {
     const generatedClientId = crypto.randomUUID();
     localStorage.setItem(this.storageKey, generatedClientId);
+
     return generatedClientId;
   }
 }

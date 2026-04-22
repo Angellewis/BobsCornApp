@@ -1,37 +1,27 @@
 # BobsCornApp
 
-Bob's Corn is a small full-stack app where each client can successfully buy at most 1 corn per rolling minute.
+Bob's Corn is a small full-stack app where each client can successfully buy at most 1 corn per rolling window.
 
 ## Repository structure
 
 - `BobsCornApp-Back`: ASP.NET Core Web API using a layered architecture.
 - `BobsCornApp-Client`: Angular client for buying corn and displaying rate-limit feedback.
 
-## Backend overview
+## Business rule
 
-The backend is organized into the following projects:
-
-- `BobsCornApp.Api`: controllers, HTTP pipeline, Swagger/OpenAPI, CORS, configuration.
-- `BobsCornApp.Application`: DTOs, service layer, interfaces, options, AutoMapper profiles.
-- `BobsCornApp.Domain`: domain entities.
-- `BobsCornApp.Infrastructure`: Dapper repository and SQL Server access.
-- `BobsCornApp.UnitTests`: MSTest test project for API, application, and repository behavior.
-
-### Business rule
-
-Each client can buy at most 1 corn per 60 seconds.
+Each client can buy at most 1 corn every `WindowSeconds`.
 
 - Successful purchase: `200 OK`
+- Missing `clientId`: `400 Bad Request`
 - Rate limit exceeded: `429 Too Many Requests`
 
-Client identity is resolved in this order:
+The `clientId` is now required as a query string parameter:
 
-1. `X-Client-Id` request header
-2. Remote IP address
+`POST /api/corn/buy?clientId=<guid>`
 
-## Main endpoint
+The frontend generates a GUID automatically, stores it in `localStorage`, and lets you generate a new one from the UI. Generating a new GUID replaces the previous value in `localStorage` and resets the purchase counters shown in the browser.
 
-`POST /api/corn/buy`
+## API responses
 
 Successful response example:
 
@@ -43,27 +33,37 @@ Successful response example:
 }
 ```
 
-Rate-limited response example:
+Missing client id example:
 
 ```json
 {
-  "message": "Rate limit exceeded. Clients can buy at most 1 corn per minute.",
+  "message": "The clientId query parameter is required."
+}
+```
+
+Rate-limited response example for `WindowSeconds = 60`:
+
+```json
+{
+  "message": "Rate limit exceeded. Clients can buy at most 1 corn every 60 seconds.",
   "retryAfterSeconds": 60
 }
 ```
 
 The API also sets the `Retry-After` response header on `429` responses.
 
-## Backend prerequisites
+## Local prerequisites
 
 - .NET 9 SDK
+- Node.js
+- npm
 - SQL Server Express or another SQL Server instance reachable from your machine
 
 ## Backend configuration
 
 The backend uses `BobsCornApp-Back/BobsCornApp.Api/appsettings.Development.json`.
 
-Current relevant settings:
+Relevant settings:
 
 ```json
 {
@@ -79,10 +79,9 @@ Current relevant settings:
 Notes:
 
 - Update `DefaultConnection` if your SQL Server instance name is different.
-- The repository creates the `dbo.CornPurchases` table automatically if it does not exist.
-- The database itself must already exist, or SQL Server must be configured to allow creating it through your chosen connection and workflow.
+- The repository creates the database and `dbo.CornPurchases` table automatically when the configured credentials allow it.
 
-## Running the backend
+## Running locally without Docker
 
 From the repository root:
 
@@ -91,25 +90,6 @@ dotnet build BobsCornApp-Back\BobsCornApp-Back.sln -m:1
 dotnet run --project BobsCornApp-Back\BobsCornApp.Api --launch-profile http
 ```
 
-Default backend URLs:
-
-- HTTP: `http://localhost:5224`
-- HTTPS profile: `https://localhost:7115`
-- IIS Express SSL profile: `https://localhost:44354`
-
-Swagger UI is available in Development at:
-
-- `http://localhost:5224/swagger`
-- `https://localhost:7115/swagger`
-- `https://localhost:44354/swagger` when using IIS Express
-
-## Frontend prerequisites
-
-- Node.js
-- npm
-
-## Running the frontend
-
 From `BobsCornApp-Client`:
 
 ```powershell
@@ -117,24 +97,49 @@ npm install
 npm start
 ```
 
-The Angular development server runs on:
+Local URLs:
 
-- `http://localhost:4200`
+- Frontend: `http://localhost:4200`
+- Backend: `http://localhost:5224`
+- Swagger: `http://localhost:5224/swagger`
 
-### Important frontend/backend note
+The Angular app now uses `/api` and the dev server proxy in `BobsCornApp-Client/proxy.conf.json`, so `npm start` works with the backend running on `http://localhost:5224`.
 
-The Angular development environment currently points to:
+## Running with Docker
 
-```ts
-apiUrl: "https://localhost:44354"
+Prerequisite:
+
+- Docker Desktop installed and running
+
+From the repository root:
+
+```powershell
+docker compose up --build
 ```
 
-That means the frontend is configured to call the backend through the IIS Express SSL profile by default.
+Exposed services:
 
-You have two valid ways to run the app locally:
+- Frontend: `http://localhost:4200`
+- Backend API: `http://localhost:5224`
+- Swagger: `http://localhost:5224/swagger`
+- SQL Server: `localhost:1433`
 
-1. Run the backend through Visual Studio/IIS Express so it is available at `https://localhost:44354`.
-2. Keep using `dotnet run` and update `BobsCornApp-Client/src/environments/environment.development.ts` to match the backend URL you are actually using, such as `http://localhost:5224` or `https://localhost:7115`.
+The compose stack includes:
+
+- `client`: Angular app built and served by Nginx
+- `api`: ASP.NET Core API
+- `db`: SQL Server 2022
+
+Optional override for the SQL Server password:
+
+```powershell
+$env:MSSQL_SA_PASSWORD="YourStrongPassword123!"
+docker compose up --build
+```
+
+Default local compose password:
+
+`BobsCornApp!234`
 
 ## Running tests
 
@@ -148,21 +153,31 @@ Frontend tests:
 
 ```powershell
 cd BobsCornApp-Client
-npm test
+npx jest --runInBand --passWithNoTests
 ```
 
-## Implementation details
+## Implementation notes
 
 - Rate limiting is enforced in the application service layer.
 - Persistence is implemented with Dapper in the infrastructure layer.
-- AutoMapper is used for API response mapping.
-- Swagger is enabled in Development.
-- CORS is configured to allow the Angular client at `http://localhost:4200`.
+- The frontend sends `clientId` as a query parameter instead of an HTTP header.
+- The rate-limit message now uses `CornRateLimit:WindowSeconds`.
+- Docker Compose runs frontend, backend, and SQL Server with a single command.
+
+## Architecture summary
+
+- The solution uses Clean Architecture: API handles HTTP, Application contains use-case logic, Infrastructure handles SQL Server access, and Domain holds the core entity model.
+- The rate-limit rule lives in the application service so the business rule stays independent from controllers, Angular, Docker, and storage details.
+- Persistence is accessed through a repository abstraction, which keeps Dapper and SQL Server concerns out of the use-case layer.
+- ASP.NET Core dependency injection wires services and configuration through interfaces and options instead of hardcoded dependencies.
+- The frontend calls `/api` through a same-origin proxy strategy: Angular dev proxy in local development and Nginx reverse proxy in Docker. This avoids hardcoded backend hosts in the browser bundle.
+- Docker Compose orchestrates the three runtime pieces as separate services: client, API, and SQL Server.
 
 ## Manual test flow
 
-1. Start the backend.
-2. Open Swagger.
-3. Call `POST /api/corn/buy` with a fixed `X-Client-Id`.
-4. Call the same endpoint again within 60 seconds.
-5. Confirm the second request returns `429`.
+1. Start the app locally or with Docker.
+2. Open the frontend at `http://localhost:4200`.
+3. Buy one corn successfully.
+4. Try again before the window expires and confirm the UI shows the `429` message and countdown.
+5. Generate a new client id from the UI and confirm the purchase counters reset locally.
+6. Call `POST /api/corn/buy` without `clientId` and confirm the API returns `400`.

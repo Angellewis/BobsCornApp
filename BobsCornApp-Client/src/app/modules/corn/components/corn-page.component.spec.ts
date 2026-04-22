@@ -12,18 +12,20 @@ describe("CornPageComponent", () => {
       .overrideProvider(ClientIdentityService, {
         useValue: {
           getClientId: () => "client-abc",
+          regenerateClientId: () => "client-new",
         },
       })
       .overrideProvider(CornApiService, {
         useValue: {
           buyCorn: jest.fn().mockReturnValue(
             of({
-              corn: "🌽",
+              corn: "corn",
               message: "Corn purchased successfully.",
               purchasedAtUtc: "2026-04-16T00:00:00Z",
             }),
           ),
           isRateLimitError: jest.fn().mockReturnValue(false),
+          isBadRequestError: jest.fn().mockReturnValue(false),
         },
       })
       .compileComponents();

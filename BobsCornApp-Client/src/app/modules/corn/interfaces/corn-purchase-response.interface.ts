@@ -1,5 +1,6 @@
-export interface CornPurchaseResponse {
+import { BaseResponse } from "./api-error-response.interface";
+
+export interface CornPurchaseResponse extends BaseResponse {
   corn: string;
-  message: string;
   purchasedAtUtc: string;
 }

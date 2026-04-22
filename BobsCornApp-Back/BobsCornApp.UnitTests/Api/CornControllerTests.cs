@@ -3,13 +3,14 @@ using BobsCornApp.Api.Controllers;
 using BobsCornApp.Application.Dtos;
 using BobsCornApp.Application.Interfaces;
 using BobsCornApp.Application.Mapping;
+using BobsCornApp.Application.Options;
 using BobsCornApp.Domain.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
-using System.Net;
 
 namespace BobsCornApp.UnitTests.Api;
 
@@ -56,67 +57,56 @@ public class CornControllerTests
                 Value: RateLimitExceededResponseDto dto
             }
             && dto.RetryAfterSeconds == 8
+            && dto.Message == "Rate limit exceeded. Clients can buy at most 1 corn every 60 seconds."
             && controller.Response.Headers.RetryAfter == "8",
             "Expected a 429 response with a rounded retry-after header and payload.");
     }
 
     [TestMethod]
-    public async Task BuyCornShouldUseRemoteIpWhenHeaderIsMissing()
+    public async Task BuyCornShouldReturnBadRequestWhenClientIdIsMissing()
     {
         var service = new Mock<ICornPurchaseService>();
-        service.Setup(s => s.TryBuyCornAsync("10.0.0.7", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CornPurchaseResult.Success(new CornPurchase
-            {
-                ClientId = "10.0.0.7",
-                PurchasedAtUtc = DateTimeOffset.UtcNow
-            }));
-        var controller = CreateController(service.Object, IPAddress.Parse("10.0.0.7"));
+        var controller = CreateController(service.Object);
 
-        await controller.BuyCorn(null, CancellationToken.None);
+        var result = await controller.BuyCorn(null, CancellationToken.None);
 
         Assert.IsTrue(
-            service.Invocations.Count == 1
-            && service.Invocations[0].Arguments[0] is string clientId
-            && clientId == "10.0.0.7",
-            "Expected the controller to fall back to the remote IP address.");
+            result is BadRequestObjectResult { Value: BaseResponseDto dto }
+            && dto.Message == "The clientId query parameter is required."
+            && service.Invocations.Count == 0,
+            "Expected a 400 response when the clientId query parameter is missing.");
     }
 
     [TestMethod]
-    public async Task BuyCornShouldUseAnonymousWhenHeaderAndRemoteIpAreMissing()
+    public async Task BuyCornShouldReturnBadRequestWhenClientIdIsBlank()
     {
         var service = new Mock<ICornPurchaseService>();
-        service.Setup(s => s.TryBuyCornAsync("anonymous", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CornPurchaseResult.Success(new CornPurchase
-            {
-                ClientId = "anonymous",
-                PurchasedAtUtc = DateTimeOffset.UtcNow
-            }));
         var controller = CreateController(service.Object);
 
-        await controller.BuyCorn(null, CancellationToken.None);
+        var result = await controller.BuyCorn("   ", CancellationToken.None);
 
         Assert.IsTrue(
-            service.Invocations.Count == 1
-            && service.Invocations[0].Arguments[0] is string clientId
-            && clientId == "anonymous",
-            "Expected the controller to fall back to the anonymous client id.");
+            result is BadRequestObjectResult { Value: BaseResponseDto dto }
+            && dto.Message == "The clientId query parameter is required."
+            && service.Invocations.Count == 0,
+            "Expected a 400 response when the clientId query parameter is blank.");
     }
 
-    private static CornController CreateController(ICornPurchaseService service, IPAddress? ipAddress = null)
+    private static CornController CreateController(ICornPurchaseService service)
     {
         var mapper = new MapperConfiguration(
             configuration => configuration.AddProfile<CornMappingProfile>(),
             NullLoggerFactory.Instance)
             .CreateMapper();
 
-        var httpContext = new DefaultHttpContext();
-        httpContext.Connection.RemoteIpAddress = ipAddress;
-
-        return new CornController(service, mapper)
+        return new CornController(
+            service,
+            mapper,
+            Options.Create(new CornRateLimitOptions { WindowSeconds = 60 }))
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = httpContext
+                HttpContext = new DefaultHttpContext()
             }
         };
     }

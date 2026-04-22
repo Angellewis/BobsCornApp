@@ -14,7 +14,7 @@ export class CornPageComponent implements OnDestroy {
   private readonly cornApiService = inject(CornApiService);
   private cooldownTimer: number | null = null;
 
-  protected readonly clientId = this.clientIdentityService.getClientId();
+  protected clientId = this.clientIdentityService.getClientId();
   protected purchasedCount = 0;
   protected isLoading = false;
   protected message = "Bob is ready to sell you one fresh corn.";
@@ -35,7 +35,7 @@ export class CornPageComponent implements OnDestroy {
     this.isUnavailableError = false;
     this.message = "Asking Bob for your corn...";
 
-    this.cornApiService.buyCorn().subscribe({
+    this.cornApiService.buyCorn(this.clientId).subscribe({
       next: (response) => {
         this.purchasedCount += 1;
         this.latestPurchaseAt = response.purchasedAtUtc;
@@ -50,6 +50,11 @@ export class CornPageComponent implements OnDestroy {
           this.message = error.error.message;
           this.isUnavailableError = false;
           this.startCooldown(error.error.retryAfterSeconds);
+        } else if (this.cornApiService.isBadRequestError(error)) {
+          this.message = error.error.message;
+          this.retryAfterSeconds = null;
+          this.isUnavailableError = false;
+          this.stopCooldown();
         } else {
           this.message = "The corn stand is unavailable right now.";
           this.retryAfterSeconds = null;
@@ -60,6 +65,20 @@ export class CornPageComponent implements OnDestroy {
         this.isLoading = false;
       },
     });
+  }
+
+  protected regenerateClientId(): void {
+    if (this.isLoading) {
+      return;
+    }
+
+    this.clientId = this.clientIdentityService.regenerateClientId();
+    this.purchasedCount = 0;
+    this.latestPurchaseAt = null;
+    this.retryAfterSeconds = null;
+    this.isUnavailableError = false;
+    this.message = "A new client id was generated. Your local purchase history has been reset.";
+    this.stopCooldown();
   }
 
   ngOnDestroy(): void {

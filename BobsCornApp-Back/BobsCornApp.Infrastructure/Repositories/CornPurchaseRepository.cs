@@ -9,20 +9,29 @@ namespace BobsCornApp.Infrastructure.Repositories;
 public class CornPurchaseRepository : ICornPurchaseRepository
 {
     private readonly string _connectionString;
-    private readonly SemaphoreSlim _schemaLock = new(1, 1);
-    private bool _schemaEnsured;
+    private readonly string _databaseName;
+    private readonly SemaphoreSlim _databaseLock = new(1, 1);
+    private bool _databaseAndSchemaEnsured;
 
     public CornPurchaseRepository(IConfiguration configuration)
     {
         _connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
+
+        var connectionStringBuilder = new SqlConnectionStringBuilder(_connectionString);
+        _databaseName = connectionStringBuilder.InitialCatalog;
+
+        if (string.IsNullOrWhiteSpace(_databaseName))
+        {
+            throw new InvalidOperationException("Connection string 'DefaultConnection' must include a database name.");
+        }
     }
 
     public async Task<CornPurchase?> GetLastPurchaseAsync(
         string clientId,
         CancellationToken cancellationToken = default)
     {
-        await EnsureSchemaAsync(cancellationToken);
+        await EnsureDatabaseAndSchemaAsync(cancellationToken);
 
         const string sql = """
             SELECT TOP (1)
@@ -45,7 +54,7 @@ public class CornPurchaseRepository : ICornPurchaseRepository
         CornPurchase purchase,
         CancellationToken cancellationToken = default)
     {
-        await EnsureSchemaAsync(cancellationToken);
+        await EnsureDatabaseAndSchemaAsync(cancellationToken);
 
         const string sql = """
             MERGE dbo.CornPurchases WITH (HOLDLOCK) AS Target
@@ -75,41 +84,72 @@ public class CornPurchaseRepository : ICornPurchaseRepository
                 cancellationToken: cancellationToken));
     }
 
-    private async Task EnsureSchemaAsync(CancellationToken cancellationToken)
+    private async Task EnsureDatabaseAndSchemaAsync(CancellationToken cancellationToken)
     {
-        if (_schemaEnsured)
+        if (_databaseAndSchemaEnsured)
         {
             return;
         }
 
-        await _schemaLock.WaitAsync(cancellationToken);
+        await _databaseLock.WaitAsync(cancellationToken);
         try
         {
-            if (_schemaEnsured)
+            if (_databaseAndSchemaEnsured)
             {
                 return;
             }
 
-            const string sql = """
-                IF OBJECT_ID(N'dbo.CornPurchases', N'U') IS NULL
-                BEGIN
-                    CREATE TABLE dbo.CornPurchases
-                    (
-                        ClientId NVARCHAR(256) NOT NULL CONSTRAINT PK_CornPurchases PRIMARY KEY,
-                        PurchasedAtUtc DATETIMEOFFSET NOT NULL
-                    );
-                END;
-                """;
+            await EnsureDatabaseExistsAsync(cancellationToken);
+            await EnsureSchemaExistsAsync(cancellationToken);
 
-            await using var connection = await OpenConnectionAsync(cancellationToken);
-            await connection.ExecuteAsync(new CommandDefinition(sql, cancellationToken: cancellationToken));
-
-            _schemaEnsured = true;
+            _databaseAndSchemaEnsured = true;
         }
         finally
         {
-            _schemaLock.Release();
+            _databaseLock.Release();
         }
+    }
+
+    private async Task EnsureDatabaseExistsAsync(CancellationToken cancellationToken)
+    {
+        const string sql = """
+            IF DB_ID(@DatabaseName) IS NULL
+            BEGIN
+                DECLARE @createDatabaseStatement NVARCHAR(MAX) =
+                    N'CREATE DATABASE ' + QUOTENAME(@DatabaseName);
+
+                EXEC (@createDatabaseStatement);
+            END;
+            """;
+
+        var connectionStringBuilder = new SqlConnectionStringBuilder(_connectionString)
+        {
+            InitialCatalog = "master"
+        };
+
+        await using var connection = new SqlConnection(connectionStringBuilder.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition(
+            sql,
+            new { DatabaseName = _databaseName },
+            cancellationToken: cancellationToken));
+    }
+
+    private async Task EnsureSchemaExistsAsync(CancellationToken cancellationToken)
+    {
+        const string sql = """
+            IF OBJECT_ID(N'dbo.CornPurchases', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.CornPurchases
+                (
+                    ClientId NVARCHAR(256) NOT NULL CONSTRAINT PK_CornPurchases PRIMARY KEY,
+                    PurchasedAtUtc DATETIMEOFFSET NOT NULL
+                );
+            END;
+            """;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition(sql, cancellationToken: cancellationToken));
     }
 
     private async Task<SqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)

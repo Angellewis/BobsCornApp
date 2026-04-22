@@ -32,4 +32,28 @@ describe('ClientIdentityService', () => {
 
     expect(clientId).toBe('11111111-1111-1111-1111-111111111111');
   });
+
+  it('should regenerate and replace the stored client id', () => {
+    localStorage.setItem('bobs-corn-client-id', 'existing-id');
+    const originalCrypto = globalThis.crypto;
+    Object.defineProperty(globalThis, 'crypto', {
+      value: {
+        randomUUID: jest.fn(() => '22222222-2222-2222-2222-222222222222')
+      },
+      configurable: true
+    });
+
+    const service = new ClientIdentityService();
+    const clientId = service.regenerateClientId();
+
+    Object.defineProperty(globalThis, 'crypto', {
+      value: originalCrypto,
+      configurable: true
+    });
+
+    expect(clientId).toBe('22222222-2222-2222-2222-222222222222');
+    expect(localStorage.getItem('bobs-corn-client-id')).toBe(
+      '22222222-2222-2222-2222-222222222222'
+    );
+  });
 });
